@@ -12,8 +12,9 @@ if not os.path.exists(UPLOAD_DIR):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    # Menggunakan INTEGER biasa tanpa AUTOINCREMENT agar kita bisa mengatur urutan nomor secara fleksibel
     c.execute('''CREATE TABLE IF NOT EXISTS anggota (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id INTEGER,
                     nama TEXT,
                     nik TEXT,
                     telp TEXT,
@@ -30,6 +31,23 @@ def init_db():
     conn.close()
 
 init_db()
+
+# Fungsi untuk merapikan/mengurutkan ulang semua ID secara otomatis agar selalu berurutan tanpa celah
+def reorder_ids():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT * FROM anggota")
+    rows = c.fetchall()
+    
+    # Kosongkan tabel sementara, lalu masukkan kembali dengan nomor ID baru yang berurutan dari 1
+    c.execute("DELETE FROM anggota")
+    for new_id, row in enumerate(rows, start=1):
+        c.execute("""
+            INSERT INTO anggota (id, nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (new_id, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]))
+    conn.commit()
+    conn.close()
 
 st.title("Bank Data Anggota & KTP - F-SB SEMAR")
 
@@ -104,13 +122,18 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
 
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
+            # Ambil ID terakhir, lalu tambah 1 (jika kosong mulai dari 1)
+            c.execute("SELECT MAX(id) FROM anggota")
+            max_id = c.fetchone()[0]
+            next_id = 1 if max_id is None else max_id + 1
+
             c.execute("""
-                INSERT INTO anggota (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto_path, status))
+                INSERT INTO anggota (id, nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (next_id, nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto_path, status))
             conn.commit()
             conn.close()
-            st.success(f"Data anggota atas nama {nama} berhasil disimpan!")
+            st.success(f"Data anggota atas nama {nama} berhasil disimpan dengan Nomor ID {next_id}!")
 
 # --- MENU 2: LIHAT SEMUA DATA ---
 elif choice == "2. Data Semua Anggota" and st.session_state.logged_in:
@@ -147,9 +170,8 @@ elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
     conn.close()
     
     if not df.empty:
-        st.info("💡 Pilih dan centang baris anggota pada tabel di bawah ini, atau masukkan ID-nya untuk dihapus.")
+        st.info("💡 Centang baris anggota pada tabel di bawah ini untuk dihapus. Nomor ID otomatis akan merapat/mengurut ulang.")
         
-        # Tabel interaktif yang bisa diklik/centang langsung oleh admin
         edited_df = st.data_editor(
             df.assign(Pilih=False),
             column_config={"Pilih": st.column_config.CheckboxColumn("Centang untuk Hapus", required=True)},
@@ -168,9 +190,13 @@ elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
                 conn.commit()
                 conn.close()
                 
-                st.success(f"Berhasil menghapus {len(ids_to_delete)} data anggota dari sistem!")
+                # Panggil fungsi untuk merapikan dan mengurutkan kembali nomor ID secara otomatis
+                reorder_ids()
+                
+                st.success(f"Berhasil menghapus data dan nomor ID berhasil diurutkan ulang secara otomatis!")
                 st.rerun()
             else:
                 st.warning("Belum ada data yang Anda centang pada tabel.")
     else:
         st.info("Belum ada data anggota yang tersimpan.")
+        
