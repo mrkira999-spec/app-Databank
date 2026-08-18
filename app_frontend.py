@@ -12,9 +12,8 @@ if not os.path.exists(UPLOAD_DIR):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Hapus tabel lama untuk menghindari konflik struktur kolom
-    c.execute("DROP TABLE IF EXISTS anggota")
-    c.execute('''CREATE TABLE anggota (
+    # Aman: Hanya membuat tabel jika belum ada, data lama tidak akan terhapus
+    c.execute('''CREATE TABLE IF NOT EXISTS anggota (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nama TEXT,
                     nik TEXT,
@@ -66,7 +65,7 @@ else:
     menu = ["1. Input Data Anggota", "2. Data Semua Anggota", "3. Cari Data Anggota"]
 
 if not st.session_state.logged_in:
-    st.warning("⚠️ Silakan **Login** terlebih dahulu di sidebar sebelah kiri.")
+    st.warning("⚠️ Silakan **Login** terlebih dahulu di sidebar sebelah kiri menggunakan akun admin.")
     choice = ""
 else:
     choice = st.sidebar.selectbox("Pilih Menu", menu)
@@ -104,7 +103,6 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
                 with open(foto_path, "wb") as f:
                     f.write(foto.getbuffer())
 
-            # Eksekusi database dengan 11 kolom dan 11 parameter tanda tanya (?) secara presisi
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
             c.execute("""
