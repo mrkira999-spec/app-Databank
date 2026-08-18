@@ -13,6 +13,22 @@ if not os.path.exists(UPLOAD_DIR):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
+    
+    # Cek apakah tabel anggota sudah ada
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='anggota'")
+    table_exists = c.fetchone()
+    
+    if table_exists:
+        # Cek kolom yang ada di dalam tabel anggota
+        c.execute("PRAGMA table_info(anggota)")
+        columns = [col[1] for col in c.fetchall()]
+        
+        # Jika kolom 'status' belum ada (berarti ini tabel versi lama), hapus dan buat ulang agar sinkron
+        if "status" not in columns:
+            c.execute("DROP TABLE anggota")
+            conn.commit()
+
+    # Buat ulang tabel dengan struktur lengkap terbaru
     c.execute('''CREATE TABLE IF NOT EXISTS anggota (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nama TEXT,
@@ -48,7 +64,6 @@ if not st.session_state.logged_in:
         submit_login = st.form_submit_button("Login")
         
         if submit_login:
-            # Login disesuaikan dengan kredensial: Marhaendra99 / akira123#
             if username_input == "Marhaendra99" and password_input == "akira123#":
                 st.session_state.logged_in = True
                 st.success("Login Berhasil!")
@@ -56,7 +71,6 @@ if not st.session_state.logged_in:
             else:
                 st.error("Username atau Password salah!")
     
-    # --- PENGAMAN UTAMA: Jika belum login, menu dikosongkan ---
     menu = []
 else:
     st.sidebar.success("Status: Login sebagai Admin")
@@ -64,10 +78,8 @@ else:
         st.session_state.logged_in = False
         st.rerun()
     
-    # Menu lengkap hanya muncul setelah berhasil login
     menu = ["1. Input Data Anggota", "2. Data Semua Anggota", "3. Cari Data Anggota"]
 
-# --- PENGECEKAN PILIHAN MENU ---
 if not st.session_state.logged_in:
     st.warning("⚠️ Anda berada di halaman publik. Silakan **Login** terlebih dahulu melalui panel di sebelah kiri untuk mengakses sistem Bank Data.")
     choice = ""
