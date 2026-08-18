@@ -56,18 +56,25 @@ if not st.session_state.logged_in:
             else:
                 st.error("Username atau Password salah!")
     
-    menu = ["2. Data Semua Anggota", "3. Cari Data Anggota"]
+    # --- PENGAMAN UTAMA: Jika belum login, menu dikosongkan ---
+    menu = []
 else:
     st.sidebar.success("Status: Login sebagai Admin")
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
     
+    # Menu lengkap hanya muncul setelah berhasil login
     menu = ["1. Input Data Anggota", "2. Data Semua Anggota", "3. Cari Data Anggota"]
 
-choice = st.sidebar.selectbox("Pilih Menu", menu)
+# --- PENGECEKAN PILIHAN MENU ---
+if not st.session_state.logged_in:
+    st.warning("⚠️ Anda berada di halaman publik. Silakan **Login** terlebih dahulu melalui panel di sebelah kiri untuk mengakses sistem Bank Data.")
+    choice = ""
+else:
+    choice = st.sidebar.selectbox("Pilih Menu", menu)
 
-# --- MENU 1: INPUT DATA (Hanya untuk Admin) ---
+# --- MENU 1: INPUT DATA ---
 if choice == "1. Input Data Anggota" and st.session_state.logged_in:
     st.subheader("Formulir Pendaftaran Anggota Baru (Admin Mode)")
     
@@ -110,7 +117,7 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
             st.success(f"Data anggota atas nama {nama} berhasil disimpan!")
 
 # --- MENU 2: LIHAT SEMUA DATA ---
-elif choice == "2. Data Semua Anggota":
+elif choice == "2. Data Semua Anggota" and st.session_state.logged_in:
     st.subheader("Daftar Seluruh Anggota Terdaftar")
     conn = sqlite3.connect(DB_NAME)
     df = pd.read_sql("SELECT * FROM anggota", conn)
@@ -122,7 +129,7 @@ elif choice == "2. Data Semua Anggota":
         st.info("Belum ada data anggota yang tersimpan.")
 
 # --- MENU 3: CARI DATA ---
-elif choice == "3. Cari Data Anggota":
+elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
     st.subheader("Cari Data Anggota")
     cari = st.text_input("Masukkan nama atau NIK yang dicari")
     
