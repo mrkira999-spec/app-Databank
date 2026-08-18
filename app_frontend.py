@@ -12,7 +12,6 @@ if not os.path.exists(UPLOAD_DIR):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    # Aman: Hanya membuat tabel jika belum ada, data lama tidak akan terhapus
     c.execute('''CREATE TABLE IF NOT EXISTS anggota (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nama TEXT,
@@ -62,10 +61,10 @@ else:
         st.session_state.logged_in = False
         st.rerun()
     
-    menu = ["1. Input Data Anggota", "2. Data Semua Anggota", "3. Cari Data Anggota"]
+    menu = ["1. Input Data Anggota", "2. Data Semua Anggota", "3. Cari Data Anggota", "4. Hapus Data Anggota"]
 
 if not st.session_state.logged_in:
-    st.warning("⚠️ Silakan **Login** terlebih dahulu di sidebar sebelah kiri menggunakan akun admin.")
+    st.warning("⚠️ Silakan **Login** terlebih dahulu di sidebar sebelah kiri.")
     choice = ""
 else:
     choice = st.sidebar.selectbox("Pilih Menu", menu)
@@ -139,3 +138,39 @@ elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
             st.dataframe(df, use_container_width=True)
         else:
             st.warning("Data tidak ditemukan.")
+
+# --- MENU 4: HAPUS DATA ANGGOTA ---
+elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
+    st.subheader("Kelola & Hapus Data Anggota Tidak Aktif")
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql("SELECT id, nama, nik, status FROM anggota", conn)
+    conn.close()
+    
+    if not df.empty:
+        st.info("💡 Pilih dan centang baris anggota pada tabel di bawah ini, atau masukkan ID-nya untuk dihapus.")
+        
+        # Tabel interaktif yang bisa diklik/centang langsung oleh admin
+        edited_df = st.data_editor(
+            df.assign(Pilih=False),
+            column_config={"Pilih": st.column_config.CheckboxColumn("Centang untuk Hapus", required=True)},
+            disabled=["id", "nama", "nik", "status"],
+            use_container_width=True
+        )
+        
+        if st.button("Hapus Anggota yang Dicentang"):
+            selected_rows = edited_df[edited_df["Pilih"] == True]
+            if not selected_rows.empty:
+                ids_to_delete = selected_rows["id"].tolist()
+                
+                conn = sqlite3.connect(DB_NAME)
+                c = conn.cursor()
+                c.executemany("DELETE FROM anggota WHERE id = ?", [(i,) for i in ids_to_delete])
+                conn.commit()
+                conn.close()
+                
+                st.success(f"Berhasil menghapus {len(ids_to_delete)} data anggota dari sistem!")
+                st.rerun()
+            else:
+                st.warning("Belum ada data yang Anda centang pada tabel.")
+    else:
+        st.info("Belum ada data anggota yang tersimpan.")
