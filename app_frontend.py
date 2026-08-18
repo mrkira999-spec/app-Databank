@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 import os
 
-# Konfigurasi Database dan Folder Penyimpanan Foto
 DB_NAME = "bank_data_db.db"
 UPLOAD_DIR = "storage"
 
@@ -13,23 +12,9 @@ if not os.path.exists(UPLOAD_DIR):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    
-    # Cek apakah tabel anggota sudah ada
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='anggota'")
-    table_exists = c.fetchone()
-    
-    if table_exists:
-        # Cek kolom yang ada di dalam tabel anggota
-        c.execute("PRAGMA table_info(anggota)")
-        columns = [col[1] for col in c.fetchall()]
-        
-        # Jika kolom 'status' belum ada (berarti ini tabel versi lama), hapus dan buat ulang agar sinkron
-        if "status" not in columns:
-            c.execute("DROP TABLE anggota")
-            conn.commit()
-
-    # Buat ulang tabel dengan struktur lengkap terbaru
-    c.execute('''CREATE TABLE IF NOT EXISTS anggota (
+    # Hapus tabel lama untuk menghindari konflik struktur kolom
+    c.execute("DROP TABLE IF EXISTS anggota")
+    c.execute('''CREATE TABLE anggota (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nama TEXT,
                     nik TEXT,
@@ -81,14 +66,14 @@ else:
     menu = ["1. Input Data Anggota", "2. Data Semua Anggota", "3. Cari Data Anggota"]
 
 if not st.session_state.logged_in:
-    st.warning("⚠️ Anda berada di halaman publik. Silakan **Login** terlebih dahulu melalui panel di sebelah kiri untuk mengakses sistem Bank Data.")
+    st.warning("⚠️ Silakan **Login** terlebih dahulu di sidebar sebelah kiri.")
     choice = ""
 else:
     choice = st.sidebar.selectbox("Pilih Menu", menu)
 
 # --- MENU 1: INPUT DATA ---
 if choice == "1. Input Data Anggota" and st.session_state.logged_in:
-    st.subheader("Formulir Pendaftaran Anggota Baru (Admin Mode)")
+    st.subheader("Formulir Pendaftaran Anggota Baru")
     
     with st.form("form_tambah", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -119,11 +104,13 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
                 with open(foto_path, "wb") as f:
                     f.write(foto.getbuffer())
 
+            # Eksekusi database dengan 11 kolom dan 11 parameter tanda tanya (?) secara presisi
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
-            c.execute("""INSERT INTO anggota (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                      (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto_path, status))
+            c.execute("""
+                INSERT INTO anggota (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto_path, status))
             conn.commit()
             conn.close()
             st.success(f"Data anggota atas nama {nama} berhasil disimpan!")
