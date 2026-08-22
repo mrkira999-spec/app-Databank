@@ -1,36 +1,36 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
 import os
+import sqlalchemy
 
-DB_NAME = "bank_data_db.db"
+SUPABASE_URL = "postgresql://postgres:43cwB+scN+hq25X@db.sxlrjdizbdwiumahezip.supabase.co:5432/postgres"
+
+engine = sqlalchemy.create_engine(SUPABASE_URL)
+
 UPLOAD_DIR = "storage"
-
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS anggota (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nama TEXT,
-                    nik TEXT,
-                    telp TEXT,
-                    ttl TEXT,
-                    alamat TEXT,
-                    kel TEXT,
-                    kec TEXT,
-                    kota TEXT,
-                    prov TEXT,
-                    foto TEXT,
-                    status TEXT
-                )''')
-    conn.commit()
-    conn.close()
+    with engine.begin() as conn:
+        conn.execute(sqlalchemy.text('''
+            CREATE TABLE IF NOT EXISTS anggota (
+                id SERIAL PRIMARY KEY,
+                nama TEXT,
+                nik TEXT,
+                telp TEXT,
+                ttl TEXT,
+                alamat TEXT,
+                kel TEXT,
+                kec TEXT,
+                kota TEXT,
+                prov TEXT,
+                foto TEXT,
+                status TEXT
+            )
+        '''))
 
 init_db()
-
 st.title("Bank Data Anggota & KTP - F-SB SEMAR")
 
 # --- SISTEM LOGIN ADMIN ---
