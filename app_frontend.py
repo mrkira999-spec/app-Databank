@@ -3,8 +3,8 @@ import pandas as pd
 import os
 import sqlalchemy
 
+# Koneksi ke Supabase menggunakan SQLAlchemy
 SUPABASE_URL = "postgresql://postgres:43cwB%2BscN%2Bhq25X@db.sxlrjdizbdwiumahezip.supabase.co:6543/postgres"
-
 engine = sqlalchemy.create_engine(SUPABASE_URL)
 
 UPLOAD_DIR = "storage"
@@ -102,29 +102,28 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
                 with open(foto_path, "wb") as f:
                     f.write(foto.getbuffer())
 
-            conn = sqlite3.connect(DB_NAME)
-            c = conn.cursor()
-            c.execute("""
-                INSERT INTO anggota (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto_path, status))
-            conn.commit()
-            conn.close()
-            st.success(f"Data anggota atas nama {nama} berhasil disimpan!")
+            with engine.begin() as conn:
+                conn.execute(sqlalchemy.text("""
+                    INSERT INTO anggota (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
+                    VALUES (:nama, :nik, :telp, :ttl, :alamat, :kel, :kec, :kota, :prov, :foto, :status)
+                """), {
+                    "nama": nama, "nik": nik, "telp": telp, "ttl": ttl, 
+                    "alamat": alamat, "kel": kel, "kec": kec, "kota": kota, 
+                    "prov": prov, "foto": foto_path, "status": status
+                })
+            st.success(f"Data anggota atas nama {nama} berhasil disimpan ke Supabase!")
 
 # --- MENU 2: LIHAT SEMUA DATA ---
 elif choice == "2. Data Semua Anggota" and st.session_state.logged_in:
     st.subheader("Daftar Seluruh Anggota Terdaftar")
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql("SELECT * FROM anggota", conn)
-    conn.close()
+    df = pd.read_sql("SELECT * FROM anggota", engine)
     
     if not df.empty:
         df = df.reset_index(drop=True)
         df['id'] = range(1, len(df) + 1)
         st.dataframe(df, use_container_width=True)
     else:
-        st.info("Belum ada data anggota yang tersimpan.")
+        st.info("Belum ada data anggota yang tersimpan di Supabase.")
 
 # --- MENU 3: CARI DATA ---
 elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
@@ -132,9 +131,8 @@ elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
     cari = st.text_input("Masukkan nama atau NIK yang dicari")
     
     if cari:
-        conn = sqlite3.connect(DB_NAME)
-        df = pd.read_sql(f"SELECT * FROM anggota WHERE nama LIKE '%{cari}%' OR nik LIKE '%{cari}%'", conn)
-        conn.close()
+        query = sqlalchemy.text("SELECT * FROM anggota WHERE nama ILIKE :cari OR nik ILIKE :cari")
+        df = pd.read_sql(query, engine, params={"cari": f"%{cari}%"})
         
         if not df.empty:
             df = df.reset_index(drop=True)
@@ -146,21 +144,22 @@ elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
 # --- MENU 4: HAPUS DATA ANGGOTA ---
 elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
     st.subheader("Kelola & Hapus Data Anggota Tidak Aktif")
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql("SELECT id, nama, nik, status FROM anggota", conn)
-    conn.close()
+    df = pd.read_sql("SELECT id, nama, nik, status FROM anggota", engine)
     
     if not df.empty:
         st.info("💡 Centang baris anggota pada tabel di bawah ini untuk dihapus.")
         
-        # Penomoran id di tabel hapus juga dirapikan mulai dari 1
         df = df.reset_index(drop=True)
-        df['id'] = range(1, len(df) + 1)
+        df['no_tampil'] = range(1, len(df) + 1)
+        
+        # Geser kolom penomoran ke depan agar rapi
+        cols = ['no_tampil'] + [col for col in df.columns if col != 'no_tampil']
+        df = df[cols]
         
         edited_df = st.data_editor(
             df.assign(Pilih=False),
             column_config={"Pilih": st.column_config.CheckboxColumn("Centang untuk Hapus", required=True)},
-            disabled=["id", "nama", "nik", "status"],
+            disabled=["no_tampil", "id", "nama", "nik", "status"],
             use_container_width=True
         )
         
@@ -169,23 +168,13 @@ elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
             if not selected_rows.empty:
                 ids_to_delete = selected_rows["id"].tolist()
                 
-                # Mengambil ulang data asli dari database untuk mencocokkan baris yang benar
-                conn = sqlite3.connect(DB_NAME)
-                df_real = pd.read_sql("SELECT id, nama FROM anggota", conn)
-                c = conn.cursor()
+                with engine.begin() as conn:
+                    for real_id in ids_to_delete:
+                        conn.execute(sqlalchemy.text("DELETE FROM anggota WHERE id = :id"), {"id": int(real_id)})
                 
-                # Hapus berdasarkan data yang dipilih melalui indeks yang sesuai
-                for idx in selected_rows.index:
-                    real_id = df_real.iloc[idx]['id']
-                    c.execute("DELETE FROM anggota WHERE id = ?", (real_id,))
-                
-                conn.commit()
-                conn.close()
-                
-                st.success("Berhasil menghapus data anggota yang dicentang!")
+                st.success("Berhasil menghapus data anggota yang dicentang dari Supabase!")
                 st.rerun()
             else:
                 st.warning("Belum ada data yang Anda centang pada tabel.")
     else:
-        st.info("Belum ada data anggota yang tersimpan.")
-        
+        st.info("Belum ada data anggota yang tersimpan di Supabase.")
