@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import sqlalchemy
 
-SUPABASE_URL = "postgresql://postgres:43cwB%2BscN%2Bhq25X@db.sxlrjdizbdwiumahezip.supabase.co:5432/postgres"
+SUPABASE_URL = "postgresql://postgres:43cwB%2BscN%2Bhq25X@db.sxlrjdizbdwiumahezip.supabase.co:6543/postgres"
 
 engine = sqlalchemy.create_engine(SUPABASE_URL)
 
