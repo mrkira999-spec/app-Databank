@@ -1,36 +1,17 @@
 import streamlit as st
 import pandas as pd
 import os
-import sqlalchemy
+from supabase import create_client, Client
 
-# Koneksi ke Supabase menggunakan SQLAlchemy
-SUPABASE_URL = "postgresql://postgres:43cwB%2BscN%2Bhq25X@db.sxlrjdizbdwiumahezip.supabase.co:6543/postgres"
-engine = sqlalchemy.create_engine(SUPABASE_URL)
+# Mengambil konfigurasi dari Streamlit Secrets
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 UPLOAD_DIR = "storage"
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
-def init_db():
-    with engine.begin() as conn:
-        conn.execute(sqlalchemy.text('''
-            CREATE TABLE IF NOT EXISTS anggota (
-                id SERIAL PRIMARY KEY,
-                nama TEXT,
-                nik TEXT,
-                telp TEXT,
-                ttl TEXT,
-                alamat TEXT,
-                kel TEXT,
-                kec TEXT,
-                kota TEXT,
-                prov TEXT,
-                foto TEXT,
-                status TEXT
-            )
-        '''))
-
-init_db()
 st.title("Bank Data Anggota & KTP - F-SB SEMAR")
 
 # --- SISTEM LOGIN ADMIN ---
@@ -102,23 +83,24 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
                 with open(foto_path, "wb") as f:
                     f.write(foto.getbuffer())
 
-            with engine.begin() as conn:
-                conn.execute(sqlalchemy.text("""
-                    INSERT INTO anggota (nama, nik, telp, ttl, alamat, kel, kec, kota, prov, foto, status) 
-                    VALUES (:nama, :nik, :telp, :ttl, :alamat, :kel, :kec, :kota, :prov, :foto, :status)
-                """), {
-                    "nama": nama, "nik": nik, "telp": telp, "ttl": ttl, 
-                    "alamat": alamat, "kel": kel, "kec": kec, "kota": kota, 
-                    "prov": prov, "foto": foto_path, "status": status
-                })
+            data_baru = {
+                "nama": nama, "nik": nik, "telp": telp, "ttl": ttl, 
+                "alamat": alamat, "kel": kel, "kec": kec, "kota": kota, 
+                "prov": prov, "foto": foto_path, "status": status
+            }
+            
+            supabase.table("anggota").insert(data_baru).execute()
             st.success(f"Data anggota atas nama {nama} berhasil disimpan ke Supabase!")
 
 # --- MENU 2: LIHAT SEMUA DATA ---
 elif choice == "2. Data Semua Anggota" and st.session_state.logged_in:
     st.subheader("Daftar Seluruh Anggota Terdaftar")
-    df = pd.read_sql("SELECT * FROM anggota", engine)
     
-    if not df.empty:
+    response = supabase.table("anggota").select("*").execute()
+    data = response.data
+    
+    if data:
+        df = pd.DataFrame(data)
         df = df.reset_index(drop=True)
         df['id'] = range(1, len(df) + 1)
         st.dataframe(df, use_container_width=True)
@@ -131,10 +113,11 @@ elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
     cari = st.text_input("Masukkan nama atau NIK yang dicari")
     
     if cari:
-        query = sqlalchemy.text("SELECT * FROM anggota WHERE nama ILIKE :cari OR nik ILIKE :cari")
-        df = pd.read_sql(query, engine, params={"cari": f"%{cari}%"})
+        response = supabase.table("anggota").select("*").or_(f"nama.ilike.%{cari}%,nik.ilike.%{cari}%").execute()
+        data = response.data
         
-        if not df.empty:
+        if data:
+            df = pd.DataFrame(data)
             df = df.reset_index(drop=True)
             df['id'] = range(1, len(df) + 1)
             st.dataframe(df, use_container_width=True)
@@ -144,15 +127,17 @@ elif choice == "3. Cari Data Anggota" and st.session_state.logged_in:
 # --- MENU 4: HAPUS DATA ANGGOTA ---
 elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
     st.subheader("Kelola & Hapus Data Anggota Tidak Aktif")
-    df = pd.read_sql("SELECT id, nama, nik, status FROM anggota", engine)
     
-    if not df.empty:
+    response = supabase.table("anggota").select("id, nama, nik, status").execute()
+    data = response.data
+    
+    if data:
+        df = pd.DataFrame(data)
         st.info("💡 Centang baris anggota pada tabel di bawah ini untuk dihapus.")
         
         df = df.reset_index(drop=True)
         df['no_tampil'] = range(1, len(df) + 1)
         
-        # Geser kolom penomoran ke depan agar rapi
         cols = ['no_tampil'] + [col for col in df.columns if col != 'no_tampil']
         df = df[cols]
         
@@ -166,15 +151,12 @@ elif choice == "4. Hapus Data Anggota" and st.session_state.logged_in:
         if st.button("Hapus Anggota yang Dicentang"):
             selected_rows = edited_df[edited_df["Pilih"] == True]
             if not selected_rows.empty:
-                ids_to_delete = selected_rows["id"].tolist()
+                for idx, row in selected_rows.iterrows():
+                    supabase.table("anggota").delete().eq("id", row["id"]).execute()
                 
-                with engine.begin() as conn:
-                    for real_id in ids_to_delete:
-                        conn.execute(sqlalchemy.text("DELETE FROM anggota WHERE id = :id"), {"id": int(real_id)})
-                
-                st.success("Berhasil menghapus data anggota yang dicentang dari Supabase!")
+                st.success("Berhasil menghapus data yang dicentang dari Supabase!")
                 st.rerun()
             else:
                 st.warning("Belum ada data yang Anda centang pada tabel.")
     else:
-        st.info("Belum ada data anggota yang tersimpan di Supabase.")
+        st.info("Belum ada data anggota di Supabase.")
