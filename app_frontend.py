@@ -95,18 +95,33 @@ else:
                     supabase.table("anggota").insert(data_baru).execute()
                     st.success(f"Data anggota atas nama {nama} berhasil disimpan ke Supabase!")
 
-    # --- MENU 2: LIHAT SEMUA DATA ---
+    # --- MENU 2: LIHAT SEMUA DATA (Urut A-Z & Highlight Merah untuk Dobel) ---
     elif choice == "2. Data Semua Anggota":
-        st.subheader("Daftar Seluruh Anggota Terdaftar")
+        st.subheader("Daftar Seluruh Anggota Terdaftar (Urut A-Z)")
         
         response = supabase.table("anggota").select("*").execute()
         data = response.data
         
         if data:
             df = pd.DataFrame(data)
+            
+            # Mengurutkan berdasarkan nama dari A-Z
+            if 'nama' in df.columns:
+                df = df.sort_values(by='nama', ascending=True)
+            
             df = df.reset_index(drop=True)
-            df['id'] = range(1, len(df) + 1)
-            st.dataframe(df, use_container_width=True)
+            df['id_tampil'] = range(1, len(df) + 1)
+            
+            # Fungsi otomatis mewarnai baris yang NIK-nya kembar (dobel) menjadi merah
+            def highlight_duplicate(s):
+                is_dup = s.duplicated(subset=['nik'], keep=False)
+                return ['background-color: #ffcccc' if v else '' for v in is_dup]
+
+            # Terapkan styling warna merah pada tabel
+            styled_df = df.style.apply(highlight_duplicate, subset=['nik'])
+            
+            st.info("💡 Baris dengan latar belakang **warna merah muda** menandakan NIK tersebut **dobel (ganda)** di database.")
+            st.dataframe(styled_df, use_container_width=True)
         else:
             st.info("Belum ada data anggota yang tersimpan di Supabase.")
 
@@ -121,26 +136,25 @@ else:
             
             if data:
                 df = pd.DataFrame(data)
-                df = df.reset_index(drop=True)
-                df['id'] = range(1, len(df) + 1)
+                df = df.sort_values(by='nama', ascending=True).reset_index(drop=True)
+                df['id_tampil'] = range(1, len(df) + 1)
                 st.dataframe(df, use_container_width=True)
             else:
                 st.warning("Data tidak ditemukan.")
 
     # --- MENU 4: HAPUS DATA ANGGOTA ---
     elif choice == "4. Hapus Data Anggota":
-        st.subheader("Kelola & Hapus Data Anggota Tidak Aktif")
+        st.subheader("Kelola & Hapus Data Anggota Tidak Aktif / Dobel")
         
         response = supabase.table("anggota").select("id, nama, nik, status").execute()
         data = response.data
         
         if data:
             df = pd.DataFrame(data)
+            df = df.sort_values(by='nama', ascending=True).reset_index(drop=True)
             st.info("💡 Centang baris anggota pada tabel di bawah ini untuk dihapus.")
             
-            df = df.reset_index(drop=True)
             df['no_tampil'] = range(1, len(df) + 1)
-            
             cols = ['no_tampil'] + [col for col in df.columns if col != 'no_tampil']
             df = df[cols]
             
