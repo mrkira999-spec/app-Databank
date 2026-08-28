@@ -3,37 +3,51 @@ import pandas as pd
 import os
 from supabase import create_client, Client
 
-# --- PENGATURAN HALAMAN & TAMPILAN TEMA ABSTRAK HIJAU-BIRU & MERAH ---
+# --- PENGATURAN HALAMAN & TAMPILAN CYBERPUNK RED-BLACK ---
 st.set_page_config(page_title="Bank Data F-SB SEMAR", page_icon="⚡", layout="wide")
 
 st.markdown("""
     <style>
-    /* Background Hitam Pekat dengan Efek Corak Abstrak Hijau/Biru Glowing */
+    /* Background Utama Hitam Pekat dengan Corak Cyberpunk Grid & Neon Merah/Biru */
     .stApp {
-        background-color: #030305;
+        background-color: #020205;
         background-image: 
-            radial-gradient(circle at 15% 20%, rgba(0, 255, 128, 0.08) 0%, transparent 40%),
-            radial-gradient(circle at 85% 80%, rgba(0, 128, 255, 0.08) 0%, transparent 40%),
-            radial-gradient(circle at 50% 50%, rgba(20, 20, 35, 1) 100%);
+            linear-gradient(rgba(255, 0, 51, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 0, 51, 0.03) 1px, transparent 1px),
+            radial-gradient(circle at 10% 20%, rgba(255, 0, 51, 0.12) 0%, transparent 40%),
+            radial-gradient(circle at 90% 80%, rgba(0, 102, 255, 0.08) 0%, transparent 40%);
+        background-size: 30px 30px, 30px 30px, 100% 100%, 100% 100%;
         color: #ffffff;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         background-attachment: fixed;
     }
     
-    /* Sidebar Gelap dengan Sentuhan Garis Merah */
+    /* Sidebar dengan Gradasi Hitam ke Merah Menyala */
     [data-testid="stSidebar"] {
-        background-color: #07070a;
-        border-right: 1px solid #26090d;
+        background: linear-gradient(180deg, #090305 0%, #1a0508 50%, #050203 100%);
+        border-right: 2px solid #ff0033;
+        box-shadow: 5px 0 25px rgba(255, 0, 51, 0.2);
     }
 
-    /* Judul Utama dengan Gradasi Merah Elegan */
+    /* Tombol Collapse / Panah Kecil Sidebar (<<) */
+    [data-testid="collapsedControl"], button[kind="header"] {
+        background: linear-gradient(135deg, #ff0033 0%, #660014 100%) !important;
+        color: #000000 !important;
+        border: 1px solid #ff4d6d !important;
+        box-shadow: 0 0 10px rgba(255, 0, 51, 0.6);
+    }
+    [data-testid="collapsedControl"] svg {
+        fill: #000000 !important;
+    }
+
+    /* Judul Utama dengan Gradasi Merah Menyala */
     h1 {
-        font-weight: 800;
-        background: linear-gradient(90deg, #ff1e38, #ff6b6b);
+        font-weight: 900;
+        background: linear-gradient(90deg, #ff0033, #ff7b93, #ffffff);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        text-shadow: 0px 2px 10px rgba(255, 30, 56, 0.3);
-        letter-spacing: 0.5px;
+        text-shadow: 0px 0px 15px rgba(255, 0, 51, 0.4);
+        letter-spacing: 1px;
     }
     
     /* Judul Sub-menu & Bagian Lain Warna Putih */
@@ -42,13 +56,13 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* Kotak Kartu Statistik / Metric */
+    /* Kotak Kartu Statistik / Metric dengan Efek Cyber */
     div[data-testid="stMetric"] {
-        background: rgba(13, 13, 20, 0.8);
-        border: 1px solid rgba(255, 30, 56, 0.2);
+        background: linear-gradient(135deg, rgba(20, 5, 8, 0.9) 0%, rgba(10, 10, 15, 0.9) 100%);
+        border: 1px solid rgba(255, 0, 51, 0.4);
         padding: 15px;
         border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0, 255, 128, 0.03);
+        box-shadow: 0 0 15px rgba(255, 0, 51, 0.15);
         backdrop-filter: blur(5px);
     }
     div[data-testid="stMetric"] label {
@@ -57,36 +71,37 @@ st.markdown("""
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
         color: #ff334b !important;
         font-weight: bold;
+        text-shadow: 0 0 8px rgba(255, 51, 75, 0.4);
     }
 
-    /* Tombol Utama (Merah Elegan) */
+    /* Tombol Utama (Gradasi Merah Cyberpunk) */
     .stButton>button {
-        background: linear-gradient(135deg, #cc0000 0%, #e60024 100%);
+        background: linear-gradient(135deg, #cc0000 0%, #ff0033 100%);
         color: white;
         border-radius: 6px;
         padding: 0.5rem 1rem;
         font-weight: bold;
-        border: 1px solid #ff4d63;
-        box-shadow: 0 4px 12px rgba(204, 0, 0, 0.3);
+        border: 1px solid #ff6680;
+        box-shadow: 0 0 12px rgba(255, 0, 51, 0.4);
         transition: 0.2s ease;
     }
     .stButton>button:hover {
-        background: linear-gradient(135deg, #e60000 0%, #ff1e38 100%);
-        box-shadow: 0 6px 18px rgba(255, 30, 56, 0.5);
+        background: linear-gradient(135deg, #ff0033 0%, #ff4d6d 100%);
+        box-shadow: 0 0 20px rgba(255, 0, 51, 0.8);
         color: white;
     }
 
-    /* KOTAK INPUT, FORM LOGIN, & TEKS KETIKAN (Wajib Putih & Terlihat Jelas) */
+    /* KOTAK INPUT & FORM LOGIN (Wajib Putih Terang & Jelas) */
     .stTextInput input, .stTextArea textarea {
-        background-color: rgba(15, 15, 22, 0.9) !important;
+        background-color: rgba(12, 12, 18, 0.95) !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 0, 51, 0.3) !important;
         border-radius: 6px !important;
     }
     
     .stTextInput input:focus, .stTextArea textarea:focus {
-        border-color: #ff1e38 !important;
-        box-shadow: 0 0 10px rgba(255, 30, 56, 0.4) !important;
+        border-color: #ff0033 !important;
+        box-shadow: 0 0 12px rgba(255, 0, 51, 0.6) !important;
         color: #ffffff !important;
     }
 
@@ -98,9 +113,9 @@ st.markdown("""
 
     /* Dropdown Selectbox */
     .stSelectbox div[data-baseweb="select"] {
-        background-color: rgba(15, 15, 22, 0.9) !important;
+        background-color: rgba(12, 12, 18, 0.95) !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 0, 51, 0.3) !important;
         border-radius: 6px !important;
     }
     
@@ -112,9 +127,9 @@ st.markdown("""
 
     /* Kotak Peringatan & Info */
     .stAlert {
-        background-color: rgba(15, 15, 22, 0.9);
+        background-color: rgba(15, 5, 8, 0.9);
         color: #ffffff;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 0, 51, 0.4);
     }
     </style>
 """, unsafe_allow_html=True)
