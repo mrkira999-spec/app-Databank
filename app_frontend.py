@@ -51,14 +51,14 @@ else:
     choice = st.sidebar.selectbox("Pilih Menu", menu)
 
 # --- MENU 1: INPUT DATA ---
-if choice == "1. Input Data Anggota" and st.session_state.logged_in:
+elif choice == "1. Input Data Anggota" and st.session_state.logged_in:
     st.subheader("Formulir Pendaftaran Anggota Baru")
     
     with st.form("form_tambah", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             nama = st.text_input("Nama Lengkap*")
-            nik = st.text_input("NIK")
+            nik = st.text_input("NIK*")
             telp = st.text_input("No. Telepon / WhatsApp")
             ttl = st.text_input("Tempat, Tanggal Lahir")
             alamat = st.text_area("Alamat / Jalan / RT-RW*")
@@ -74,23 +74,29 @@ if choice == "1. Input Data Anggota" and st.session_state.logged_in:
         submit = st.form_submit_button("Simpan Data Anggota")
 
     if submit:
-        if not nama or not alamat or not kel or not kec or not kota or not prov:
-            st.warning("Mohon lengkapi kolom bertanda bintang (*)")
+        if not nama or not nik or not alamat or not kel or not kec or not kota or not prov:
+            st.warning("Mohon lengkapi kolom bertanda bintang (*), termasuk NIK!")
         else:
-            foto_path = ""
-            if foto is not None:
-                foto_path = os.path.join(UPLOAD_DIR, foto.name)
-                with open(foto_path, "wb") as f:
-                    f.write(foto.getbuffer())
-
-            data_baru = {
-                "nama": nama, "nik": nik, "telp": telp, "ttl": ttl, 
-                "alamat": alamat, "kel": kel, "kec": kec, "kota": kota, 
-                "prov": prov, "foto": foto_path, "status": status
-            }
+            # Pengecekan NIK Dobel sebelum disimpan
+            cek_nik = supabase.table("anggota").select("nik").eq("nik", nik).execute()
             
-            supabase.table("anggota").insert(data_baru).execute()
-            st.success(f"Data anggota atas nama {nama} berhasil disimpan ke Supabase!")
+            if len(cek_nik.data) > 0:
+                st.error(f"❌ Gagal menyimpan: NIK '{nik}' sudah terdaftar di dalam database!")
+            else:
+                foto_path = ""
+                if foto is not None:
+                    foto_path = os.path.join(UPLOAD_DIR, foto.name)
+                    with open(foto_path, "wb") as f:
+                        f.write(foto.getbuffer())
+
+                data_baru = {
+                    "nama": nama, "nik": nik, "telp": telp, "ttl": ttl, 
+                    "alamat": alamat, "kel": kel, "kec": kec, "kota": kota, 
+                    "prov": prov, "foto": foto_path, "status": status
+                }
+                
+                supabase.table("anggota").insert(data_baru).execute()
+                st.success(f"Data anggota atas nama {nama} berhasil disimpan ke Supabase!")
 
 # --- MENU 2: LIHAT SEMUA DATA ---
 elif choice == "2. Data Semua Anggota" and st.session_state.logged_in:
